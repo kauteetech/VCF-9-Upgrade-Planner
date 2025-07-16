@@ -286,12 +286,12 @@
       { name: 'vCenter', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U2', '8.0U3', '9.0'], icon: '<i class="fas fa-server"></i>' },
       { name: 'ESX', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U2', '8.0U3', '9.0'], icon: '<i class="fas fa-microchip"></i>' },
       { name: 'vSAN', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U2', '8.0U3', '9.0'], icon: '<i class="fas fa-hdd"></i>' },
-      { name: 'NSX', versions: ['3.2.x', '4.1.x', '4.2.x'], icon: '<i class="fas fa-network-wired"></i>' },
+      { name: 'NSX', versions: ['4.0.0.1', '4.0.1.1', '4.1.0.0', '4.1.1.0', '4.1.2.0', '4.2.0.0', '4.2.1.0'], icon: '<i class="fas fa-network-wired"></i>' },
       { name: 'TKGS for vSphere', versions: [], icon: '<i class="fas fa-cubes"></i>' },
       { name: 'Aria Automation', versions: ['8.18.0', '8.18.1'], icon: '<i class="fas fa-robot"></i>' },
       { name: 'Aria Operations', versions: ['8.17.1','8.17.2','8.18.0', '8.18.1'], icon: '<i class="fas fa-chart-line"></i>' },
       { name: 'Aria Operations for Logs', versions: ['8.16.x', '8.18.x'], icon: '<i class="fas fa-file-alt"></i>' },
-      { name: 'Aria Operations for Networks', versions: ['6.12.x', '6.13.x', '6.14.x'], icon: '<i class="fas fa-project-diagram"></i>' }, // MODIFIED versions
+      { name: 'Aria Operations for Networks', versions: ['6.12.x', '6.13.x', '6.14.x'], icon: '<i class="fas fa-project-diagram"></i>' },
       { name: 'SDDC Manager', versions: ['4.x', '5.x'], icon: '<i class="fas fa-cloud"></i>' },
       { name: 'VxRail Manager', versions: ['7.x', '8.x'], icon: '<i class="fas fa-server"></i>' }
     ];
@@ -302,20 +302,28 @@
       const card = document.createElement('div');
       card.className = 'component-card';
       card.draggable = true;
+      let versionSelectHtml = '';
+      if (component.versions && component.versions.length > 0) {
+        versionSelectHtml = `
+          <select class="version-select p-1 border rounded">
+            ${component.versions.map(v => `<option value="${v}">${v}</option>`).join('')}
+          </select>
+        `;
+      }
       card.innerHTML = `
         ${component.icon}
         <h3 class="text-sm font-medium ml-2 mr-2">${component.name}</h3>
-        <select class="version-select p-1 border rounded">
-          ${component.versions.map(v => `<option value="${v}">${v}</option>`).join('')}
-        </select>
+        ${versionSelectHtml}
       `;
       card.dataset.component = component.name;
       palette.appendChild(card);
 
       card.addEventListener('dragstart', (e) => {
+        const versionSelect = card.querySelector('.version-select');
+        const selectedVersion = versionSelect ? versionSelect.value : ''; // Get version only if select exists
         e.dataTransfer.setData('text/plain', JSON.stringify({
           component: component.name,
-          version: card.querySelector('.version-select').value
+          version: selectedVersion
         }));
         card.style.opacity = '0.4'; // Visual feedback for dragging
       });
@@ -327,7 +335,7 @@
 
     // Customer environment drop zone
     const dropZone = document.getElementById('customer-environment');
-
+    
     dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       dropZone.classList.add('drag-over');
@@ -352,16 +360,18 @@
       item.className = 'dropped-component-card';
       item.dataset.component = data.component;
       item.dataset.version = data.version;
+      // Display version only if it's not empty
+      const displayVersion = data.version ? ` ${data.version}` : '';
       item.innerHTML = `
-        <span>${data.component} ${data.version}</span>
+        <span>${data.component}${displayVersion}</span>
         <button class="remove-btn" title="Remove"><i class="fas fa-times-circle"></i></button>
       `;
       dropZone.appendChild(item);
-      showMessage(`Added "${data.component} ${data.version}" to your environment.`);
+      showMessage(`Added "${data.component}${displayVersion}" to your environment.`);
 
       item.querySelector('.remove-btn').addEventListener('click', () => {
         item.remove();
-        showMessage(`Removed "${data.component} ${data.version}" from your environment.`);
+        showMessage(`Removed "${data.component}${displayVersion}" from your environment.`);
         // No immediate update to flowchart
       });
 
@@ -389,7 +399,7 @@
 
         // Clear dropped components
         dropZone.innerHTML = '<p class="text-gray-500 text-center w-full">Drag components here to build your current environment.</p>';
-
+        
         // Destroy existing chart if it exists and clear canvas
         if (window.flowchartInstance) {
             window.flowchartInstance.destroy();
@@ -399,7 +409,7 @@
 
         // Reset overview text
         overviewDiv.innerHTML = '<p class="text-gray-700">Drop components into "Your Current Environment" and click "Show Upgrade Path".</p>';
-
+        
         // Ensure loading state is removed
         chartContainer.classList.remove('loading');
 
@@ -447,22 +457,15 @@
       const hasSDDCManager = validDroppedComponents.some(c => c.name === 'SDDC Manager');
       const hasVxRail = validDroppedComponents.some(c => c.name === 'VxRail Manager');
       const hasNSX = validDroppedComponents.some(c => c.name === 'NSX');
-      const hasTanzu = validDroppedComponents.some(c => c.name === 'Tanzu');
-      const hasAria = validDroppedComponents.some(c => c.name.startsWith('Aria')); // Check if any Aria component is present
-
-      const hasAriaAutomation = validDroppedComponents.find(c => c.name === 'Aria Automation');
-      const ariaAutomationVersion = hasAriaAutomation ? hasAriaAutomation.version : null;
+      const hasTKGSForVSphere = validDroppedComponents.some(c => c.name === 'TKGS for vSphere');
+      const hasAria = validDroppedComponents.some(c => c.name.startsWith('Aria'));
+      const hasAriaAutomation = validDroppedComponents.some(c => c.name === 'Aria Automation');
+      const hasAriaOperationsForLogs = validDroppedComponents.some(c => c.name === 'Aria Operations for Logs');
+      const hasAriaOperationsForNetworks = validDroppedComponents.some(c => c.name === 'Aria Operations for Networks');
       
-      const hasAriaOperationsForLogs = validDroppedComponents.find(c => c.name === 'Aria Operations for Logs');
-      const ariaOperationsForLogsVersion = hasAriaOperationsForLogs ? hasAriaOperationsForLogs.version : null;
-
-      const hasAriaOperationsForNetworks = validDroppedComponents.find(c => c.name === 'Aria Operations for Networks'); // NEW
-      const ariaOperationsForNetworksVersion = hasAriaOperationsForNetworks ? hasAriaOperationsForNetworks.version : null; // NEW
-
-
       const hasOldVSphere = validDroppedComponents.some(c => (c.name === 'vCenter' || c.name === 'ESX') && c.version.startsWith('7.'));
       const hasOldVSAN = validDroppedComponents.some(c => c.name === 'vSAN' && c.version.startsWith('7.'));
-      const hasOldNSX = validDroppedComponents.some(c => c.name === 'NSX' && c.version.startsWith('3.'));
+      const hasOldNSX = validDroppedComponents.some(c => c.name === 'NSX' && (c.version.startsWith('3.') || c.version.startsWith('4.0.') || c.version.startsWith('4.1.0.') || c.version.startsWith('4.1.1.') || c.version.startsWith('4.1.2.') || c.version.startsWith('4.2.0.')));
       const hasVxRail7x = validDroppedComponents.some(c => c.name === 'VxRail Manager' && c.version.startsWith('7.'));
       const hasVxRail8x = validDroppedComponents.some(c => c.name === 'VxRail Manager' && c.version.startsWith('8.'));
 
@@ -512,38 +515,38 @@
           const requiresIntermediateVCF5x = sddcManagerVersion.startsWith('4.');
 
           if (requiresIntermediateVCF5x) {
-              tempNodes.push({ id: nextNodeId++, label: 'Upgrade to VCF 5.x SDDC Manager', type: 'action', x: nodeXPosition }); // Changed label
+              tempNodes.push({ id: nextNodeId++, label: 'Upgrade to VCF 5.x SDDC Manager', type: 'action', x: nodeXPosition }); 
               tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
               lastNodeId = tempNodes[tempNodes.length - 1].id;
               tempNodes.push({ id: nextNodeId++, label: 'Upgrade VCF 5.x Management Domain', type: 'action', x: nodeXPosition });
               tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
               lastNodeId = tempNodes[tempNodes.length - 1].id;
-              details += `<li>**Upgrade to VCF 5.x:** VCF environments with SDDC Manager 4.x require an intermediate upgrade to VCF 5.x (which includes vCenter 8.0, vSAN 8.0, NSX 4.1.x) before proceeding to VCF 9.0. Ensure hardware compatibility for ESX 8.0.</li>`; // Updated detail text
+              details += `<li>**Upgrade to VCF 5.x:** VCF environments with SDDC Manager 4.x require an intermediate upgrade to VCF 5.x (which includes vCenter 8.0, vSAN 8.0, NSX 4.1.x) before proceeding to VCF 9.0. Ensure hardware compatibility for ESX 8.0.</li>`; 
           }
-
+          
           tempNodes.push({ id: nextNodeId++, label: 'Upgrade SDDC Manager to 9.0', type: 'action', x: nodeXPosition });
           tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
           lastNodeId = tempNodes[tempNodes.length - 1].id;
           details += `<li>**Upgrade SDDC Manager to 9.0:** Update the SDDC Manager appliance itself to the VCF 9.0 version.</li>`;
-
+          
           tempNodes.push({ id: nextNodeId++, label: 'Upgrade VCF 9.0 Management Domain (vCenter, NSX, ESX, vSAN to 9.0)', type: 'action', x: nodeXPosition });
           tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
           lastNodeId = tempNodes[tempNodes.length - 1].id;
           details += `<li>**Upgrade VCF 9.0 Management Domain:** Upgrade the core components of the management domain (vCenter, NSX Manager, ESX hosts, vSAN) to their VCF 9.0 compatible versions.</li>`;
-
+          
           tempNodes.push({ id: nextNodeId++, label: 'Upgrade VCF 9.0 Workload Domains (Optional, to 9.0)', type: 'action', x: nodeXPosition });
           tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
           lastNodeId = tempNodes[tempNodes.length - 1].id;
           details += `<li>**Upgrade VCF 9.0 Workload Domains (Optional):** System-defined and customer-created workload domains can be upgraded sequentially after the management domain.</li>`;
-
+          
           tempNodes.push({ id: nextNodeId++, label: 'Perform VCF Post-Upgrade Validations', type: 'action', x: nodeXPosition });
           tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
           lastNodeId = tempNodes[tempNodes.length - 1].id;
           details += `<li>**Perform VCF Post-Upgrade Validations:** Verify the health and functionality of all VCF components and integrated services.</li>
           </ol>
           Always refer to the specific <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/release-notes/vmware-cloud-foundation-90-release-notes.html" target="_blank" class="text-blue-600 hover:underline">VCF 9.0 Release Notes</a> and <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment.html" target="_blank" class="text-blue-600 hover:underline">VCF 9.0 Deployment Guide (which includes upgrade info)</a> for your exact version and detailed procedures.`;
-          if (hasTanzu || hasAria) {
-              details += ` Existing Tanzu and Aria Suite components will be upgraded as part of the VCF Bill of Materials (BOM) or re-integrated post-upgrade.`;
+          if (hasTKGSForVSphere || hasAria) {
+              details += ` Existing TKGS for vSphere and Aria Suite components will be upgraded as part of the VCF Bill of Materials (BOM) or re-integrated post-upgrade.`;
           }
       } else { // Standalone environment
           tempNodes.push({ id: nextNodeId++, label: 'Perform Pre-Upgrade Checks (Compatibility, Health)', type: 'action', x: nodeXPosition });
@@ -566,21 +569,71 @@
                   details += `<li>**Upgrade vCenter/ESX/vSAN to 8.x:** If your vCenter, ESX hosts, or vSAN are currently on version 7.x, you must first upgrade them to a compatible 8.x version for import.</li>`;
               }
               // NSX upgrade steps for import path
-              if (hasOldNSX) {
-                  tempNodes.push({ id: nextNodeId++, label: 'Upgrade NSX to 4.1.x (for Import)', type: 'action', x: nodeXPosition });
+              const nsxComponent = validDroppedComponents.find(c => c.name === 'NSX');
+              if (nsxComponent) {
+                  const nsxVersion = nsxComponent.version;
+                  const requiresIntermediateNSX421 = ['4.0.0.1', '4.0.1.1', '4.1.0.0', '4.1.1.0', '4.1.2.0', '4.2.0.0'].includes(nsxVersion);
+
+                  if (requiresIntermediateNSX421) {
+                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade NSX to 4.2.1.0 (for Import)', type: 'action', x: nodeXPosition });
+                      tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                      lastNodeId = tempNodes[tempNodes.length - 1].id;
+                      details += `<li>**Upgrade NSX to 4.2.1.0:** If your NSX-T Data Center is on version ${nsxVersion}, you must first upgrade it to 4.2.1.0 as an intermediate step for import.</li>`;
+                  }
+                  // Always upgrade to 9.0.0 if NSX is present and supported for import
+                  tempNodes.push({ id: nextNodeId++, label: 'Upgrade NSX to 9.0.0 (for Import)', type: 'action', x: nodeXPosition });
                   tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
                   lastNodeId = tempNodes[tempNodes.length - 1].id;
-                  details += `<li>**Upgrade NSX to 4.1.x:** If your NSX-T Data Center is on version 3.2.x, you must first upgrade it to 4.1.x as an intermediate step for import.</li>`;
+                  details += `<li>**Upgrade NSX to 9.0.0:** Upgrade your NSX environment to a version compatible with VCF 9.0 for import.</li>`;
               }
-              tempNodes.push({ id: nextNodeId++, label: 'Upgrade NSX to 4.2.x (for Import)', type: 'action', x: nodeXPosition });
-              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
-              lastNodeId = tempNodes[tempNodes.length - 1].id;
-              details += `<li>**Upgrade NSX to 4.2.x:** Upgrade your NSX environment to a version compatible with VCF 9.0 for import.</li>`;
+              
+              // Aria Automation specific upgrade paths for Import Path
+              const ariaAutomationComponent = validDroppedComponents.find(c => c.name === 'Aria Automation');
+              if (ariaAutomationComponent) {
+                  if (ariaAutomationComponent.version === '8.18.0') {
+                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Automation to 8.18.1', type: 'action', x: nodeXPosition });
+                      tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                      lastNodeId = tempNodes[tempNodes.length - 1].id;
+                      details += `<li>**Upgrade Aria Automation to 8.18.1:** If your Aria Automation is at 8.18.0, you must upgrade to 8.18.1 as an intermediate step.</li>`;
+                  }
+                  if (ariaAutomationComponent.version === '8.18.0' || ariaAutomationComponent.version === '8.18.1') {
+                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Automation to 9.0.0', type: 'action', x: nodeXPosition });
+                      tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                      lastNodeId = tempNodes[tempNodes.length - 1].id;
+                      details += `<li>**Upgrade Aria Automation to 9.0.0:** Upgrade your Aria Automation to version 9.0.0.</li>`;
+                  }
+              }
+
+              // Aria Operations for Networks specific upgrade paths for Import Path
+              const ariaOperationsForNetworksComponent = validDroppedComponents.find(c => c.name === 'Aria Operations for Networks');
+              if (ariaOperationsForNetworksComponent) {
+                  if (ariaOperationsForNetworksComponent.version === '6.12.x') {
+                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Operations for Networks to 6.14.x', type: 'action', x: nodeXPosition });
+                      tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                      lastNodeId = tempNodes[tempNodes.length - 1].id;
+                      details += `<li>**Upgrade Aria Operations for Networks to 6.14.x:** If your Aria Operations for Networks is at 6.12.x, you must upgrade to 6.14.x as an intermediate step.</li>`;
+                  }
+                  if (ariaOperationsForNetworksComponent.version === '6.12.x' || ariaOperationsForNetworksComponent.version === '6.13.x' || ariaOperationsForNetworksComponent.version === '6.14.x') {
+                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Operations for Networks to 9.0.0', type: 'action', x: nodeXPosition });
+                      tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                      lastNodeId = tempNodes[tempNodes.length - 1].id;
+                      details += `<li>**Upgrade Aria Operations for Networks to 9.0.0:** Upgrade your Aria Operations for Networks to version 9.0.0.</li>`;
+                  }
+              }
+
+              // Aria Operations for Logs specific upgrade paths for Import Path
+              if (hasAriaOperationsForLogs) {
+                  tempNodes.push({ id: nextNodeId++, label: 'Transition to VCF Operations for Logs 9.0', type: 'action', x: nodeXPosition });
+                  tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                  lastNodeId = tempNodes[tempNodes.length - 1].id;
+                  details += `<li>**Transition to VCF Operations for Logs 9.0:** If you have Aria Operations for Logs, you will need to transition to the VCF Operations for Logs 9.0 solution. This is typically a migration or redeployment process, as direct in-place upgrades are often not supported for this component when moving to a new VCF major version. Refer to the specific <a href="https://docs.vmware.com/en/VMware-Cloud-Foundation/services/rn/vmware-vrealize-log-insight-for-vcf-release-notes/index.html" target="_blank" class="text-blue-600 hover:underline">VCF Operations for Logs documentation</a> for detailed transition procedures.</li>`;
+              }
+
 
               tempNodes.push({ id: nextNodeId++, label: 'Import as VI Workload Domain into VCF 9.0', type: 'action', x: nodeXPosition });
               tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
               lastNodeId = tempNodes[tempNodes.length - 1].id;
-              details += `<li>**Import as VI Workload Domain into VCF 9.0:** For NSX-enabled standalone environments, the recommended path is to upgrade components to compatible 8.x vSphere and 4.2.x NSX, then import them as a VI workload domain into an existing VCF 9.0 management domain. This preserves your NSX configuration. See the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/building-your-private-cloud-infrastructure/working-with-workload-domains/import-an-existing-vcenter-to-create-a-workload-domain.html" target="_blank" class="text-blue-600 hover:underline">VCF 9.0 Import Existing vCenter Guide</a> for detailed steps.</li>`;
+              details += `<li>**Import as VI Workload Domain into VCF 9.0:** For NSX-enabled standalone environments, the recommended path is to upgrade components to compatible 8.x vSphere and 9.0 NSX, then import them as a VI workload domain into an existing VCF 9.0 management domain. This preserves your NSX configuration. See the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/building-your-private-cloud-infrastructure/working-with-workload-domains/import-an-existing-vcenter-to-create-a-workload-domain.html" target="_blank" class="text-blue-600 hover:underline">VCF 9.0 Import Existing vCenter Guide</a> for detailed steps.</li>`;
 
           } else { // Converge Path (No NSX)
               details += `<li>**Converge Path (No NSX):** This path is for environments without NSX. Your vSphere components (vCenter, ESX, vSAN) must be upgraded to 9.0 for convergence.</li>`;
@@ -591,7 +644,7 @@
                   lastNodeId = tempNodes[tempNodes.length - 1].id;
                   details += `<li>**Upgrade vCenter/ESX/vSAN to 8.x (Intermediate):** If your vCenter, ESX hosts, or vSAN are currently on version 7.x, you must first upgrade them to a compatible 8.x version.</li>`;
               }
-
+              
               tempNodes.push({ id: nextNodeId++, label: 'Upgrade vCenter to 9.0 (for Converge)', type: 'action', x: nodeXPosition });
               tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
               lastNodeId = tempNodes[tempNodes.length - 1].id;
@@ -602,59 +655,55 @@
               lastNodeId = tempNodes[tempNodes.length - 1].id;
               details += `<li>**Upgrade ESX Hosts & vSAN to 9.0:** Upgrade your ESX hosts and vSAN (if present) to versions compatible with VCF 9.0.</li>`;
 
-              // Aria Automation specific upgrade logic for standalone environments
-              if (hasAriaAutomation) {
-                  details += `<li>**Aria Automation Upgrade:**</li>`;
-                  if (ariaAutomationVersion === '8.18.0') {
-                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Automation 8.18.0 to 8.18.1', type: 'action', x: nodeXPosition });
+              if (hasTKGSForVSphere || hasAria) {
+                 tempNodes.push({ id: nextNodeId++, label: 'Deploy/Upgrade Aria Suite & TKGS for vSphere to VCF 9.0 compatible versions (if applicable)', type: 'action', x: nodeXPosition });
+                 tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                 lastNodeId = tempNodes[tempNodes.length - 1].id;
+                 details += `<li>**Deploy/Upgrade Aria Suite & TKGS for vSphere to VCF 9.0 compatible versions (if applicable):** Deploy or upgrade your Aria Suite products and TKGS for vSphere components to versions compatible with VCF 9.0.</li>`;
+              }
+              // Handle Aria Operations for Networks specific upgrade paths (before VCF Installer)
+              const ariaOperationsForNetworksComponent = validDroppedComponents.find(c => c.name === 'Aria Operations for Networks');
+              if (ariaOperationsForNetworksComponent) {
+                  if (ariaOperationsForNetworksComponent.version === '6.12.x') {
+                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Operations for Networks to 6.14.x', type: 'action', x: nodeXPosition });
                       tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
                       lastNodeId = tempNodes[tempNodes.length - 1].id;
-                      details += `<ul><li>**Upgrade Aria Automation 8.18.0 to 8.18.1:** An intermediate upgrade to 8.18.1 is required before upgrading to 9.0.</li></ul>`;
+                      details += `<li>**Upgrade Aria Operations for Networks to 6.14.x:** If your Aria Operations for Networks is at 6.12.x, you must upgrade to 6.14.x as an intermediate step.</li>`;
                   }
-                  if (ariaAutomationVersion === '8.18.0' || ariaAutomationVersion === '8.18.1') {
+                  if (ariaOperationsForNetworksComponent.version === '6.12.x' || ariaOperationsForNetworksComponent.version === '6.13.x' || ariaOperationsForNetworksComponent.version === '6.14.x') {
+                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Operations for Networks to 9.0.0', type: 'action', x: nodeXPosition });
+                      tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                      lastNodeId = tempNodes[tempNodes.length - 1].id;
+                      details += `<li>**Upgrade Aria Operations for Networks to 9.0.0:** Upgrade your Aria Operations for Networks to version 9.0.0.</li>`;
+                  }
+              }
+
+              // Aria Automation specific upgrade paths for Converge Path
+              const ariaAutomationComponent = validDroppedComponents.find(c => c.name === 'Aria Automation');
+              if (ariaAutomationComponent) {
+                  if (ariaAutomationComponent.version === '8.18.0') {
+                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Automation to 8.18.1', type: 'action', x: nodeXPosition });
+                      tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                      lastNodeId = tempNodes[tempNodes.length - 1].id;
+                      details += `<li>**Upgrade Aria Automation to 8.18.1:** If your Aria Automation is at 8.18.0, you must upgrade to 8.18.1 as an intermediate step.</li>`;
+                  }
+                  if (ariaAutomationComponent.version === '8.18.0' || ariaAutomationComponent.version === '8.18.1') {
                       tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Automation to 9.0.0', type: 'action', x: nodeXPosition });
                       tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
                       lastNodeId = tempNodes[tempNodes.length - 1].id;
-                      details += `<ul><li>**Upgrade Aria Automation to 9.0.0:** Upgrade Aria Automation to the 9.0.0 release.</li></ul>`;
-                  } else {
-                      details += `<ul><li>**Aria Automation version ${ariaAutomationVersion} is not directly supported for upgrade to 9.0.0.** Please upgrade to 8.18.0 or 8.18.1 first.</li></ul>`;
+                      details += `<li>**Upgrade Aria Automation to 9.0.0:** Upgrade your Aria Automation to version 9.0.0.</li>`;
                   }
               }
-              
-              // Aria Operations for Logs specific upgrade logic
+
+              // Aria Operations for Logs specific upgrade paths for Converge Path
               if (hasAriaOperationsForLogs) {
                   tempNodes.push({ id: nextNodeId++, label: 'Transition to VCF Operations for Logs 9.0', type: 'action', x: nodeXPosition });
                   tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
                   lastNodeId = tempNodes[tempNodes.length - 1].id;
-                  details += `<li>**Aria Operations for Logs Transition:** Existing Aria Operations for Logs instances (versions 8.16.x, 8.18.x) cannot be directly upgraded to VCF Operations for Logs. A transition involves deploying a new VCF Operations for Logs 9.0 instance and migrating data/configuration as applicable.</li>`;
-              }
-
-              // NEW: Aria Operations for Networks specific upgrade logic
-              if (hasAriaOperationsForNetworks) {
-                  details += `<li>**Aria Operations for Networks Upgrade:**</li>`;
-                  if (ariaOperationsForNetworksVersion === '6.12.x') {
-                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Operations for Networks to 6.14.x', type: 'action', x: nodeXPosition });
-                      tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
-                      lastNodeId = tempNodes[tempNodes.length - 1].id;
-                      details += `<ul><li>**Upgrade Aria Operations for Networks to 6.14.x:** An intermediate upgrade to 6.14.x is required before upgrading to 9.0.0.</li></ul>`;
-                  }
-                  if (['6.12.x', '6.13.x', '6.14.x'].includes(ariaOperationsForNetworksVersion)) {
-                      tempNodes.push({ id: nextNodeId++, label: 'Upgrade Aria Operations for Networks to 9.0.0', type: 'action', x: nodeXPosition });
-                      tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
-                      lastNodeId = tempNodes[tempNodes.length - 1].id;
-                      details += `<ul><li>**Upgrade Aria Operations for Networks to 9.0.0:** Upgrade Aria Operations for Networks to the 9.0.0 release.</li></ul>`;
-                  } else {
-                      details += `<ul><li>**Aria Operations for Networks version ${ariaOperationsForNetworksVersion} is not directly supported for upgrade to 9.0.0.** Please upgrade to 6.12.x, 6.13.x, or 6.14.x first.</li></ul>`;
-                  }
+                  details += `<li>**Transition to VCF Operations for Logs 9.0:** If you have Aria Operations for Logs, you will need to transition to the VCF Operations for Logs 9.0 solution. This is typically a migration or redeployment process, as direct in-place upgrades are often not supported for this component when moving to a new VCF major version. Refer to the specific <a href="https://docs.vmware.com/en/VMware-Cloud-Foundation/services/rn/vmware-vrealize-log-insight-for-vcf-release-notes/index.html" target="_blank" class="text-blue-600 hover:underline">VCF Operations for Logs documentation</a> for detailed transition procedures.</li>`;
               }
 
 
-              if (hasTanzu || (hasAria && !hasAriaAutomation && !hasAriaOperationsForLogs && !hasAriaOperationsForNetworks)) { // Only add if other Aria or Tanzu exists and Aria Automation/Ops for Logs/Ops for Networks isn't handled above
-                 tempNodes.push({ id: nextNodeId++, label: 'Deploy/Upgrade other Aria Suite & Tanzu to VCF 9.0 compatible versions (if applicable)', type: 'action', x: nodeXPosition });
-                 tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
-                 lastNodeId = tempNodes[tempNodes.length - 1].id;
-                 details += `<li>**Deploy/Upgrade other Aria Suite products & Tanzu components to VCF 9.0 compatible versions (if applicable):** Deploy or upgrade your other Aria Suite products and Tanzu components to versions compatible with VCF 9.0.</li>`;
-              }
               tempNodes.push({ id: nextNodeId++, label: 'Use VCF Installer (Converge to VCF 9.0)', type: 'action', x: nodeXPosition });
               tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
               lastNodeId = tempNodes[tempNodes.length - 1].id;
@@ -674,7 +723,7 @@
       }
 
       // Calculate Y coordinates for top-to-bottom rendering
-      let currentY = verticalSpacing;
+      let currentY = verticalSpacing; 
       for (let i = 0; i < tempNodes.length; i++) {
           tempNodes[i].y = currentY;
           currentY += verticalSpacing;
@@ -696,9 +745,9 @@
       // Set canvas dimensions explicitly before creating chart
       const canvas = document.getElementById('flowchart');
       const containerWidth = chartContainer.clientWidth;
-      const calculatedChartHeight = chartMaxY;
+      const calculatedChartHeight = chartMaxY; 
       canvas.width = containerWidth;
-      canvas.height = calculatedChartHeight;
+      canvas.height = calculatedChartHeight; 
 
       // Adjust chart container's min-height to fit the canvas if needed
       chartContainer.style.minHeight = `${calculatedChartHeight + 40}px`; // Add some extra padding for the container itself
@@ -716,9 +765,7 @@
             return '#56687a';
           },
           borderColor: (context) => {
-            const node = context.raw;
-            if (node.label === 'VCF 9.0 Upgrade Not Available') return '#FF0000'; // Thick red border for specific end node
-            const type = node.type;
+            const type = context.raw.type;
             if (type === 'start') return '#007000';
             if (type === 'action') return '#00568c';
             if (type.includes('end')) return '#B91C1C';
@@ -726,11 +773,7 @@
           },
           pointRadius: 12,
           pointHoverRadius: 15,
-          pointBorderWidth: (context) => {
-            const node = context.raw;
-            if (node.label === 'VCF 9.0 Upgrade Not Available') return 5; // Thicker border for specific end node
-            return 2;
-          },
+          pointBorderWidth: 2, 
           pointBackgroundColor: 'white'
         },
         {
@@ -776,7 +819,7 @@
                     const node = tempNodes.find(n => n.id === value.id);
                     if (node) {
                         const label = node.label;
-                        const maxLineLength = 100; // Adjusted to 40 to allow more text per line
+                        const maxLineLength = 100; 
                         let wrappedLabel = '';
                         let currentLine = '';
                         const words = label.split(' ');
@@ -802,7 +845,7 @@
                     return context.raw && context.dataset.backgroundColor && context.dataset.backgroundColor[context.dataIndex] ? context.dataset.backgroundColor[context.dataIndex] : '#56687a';
                 },
                 borderRadius: 6,
-                padding: 10
+                padding: 10,
               },
               tooltip: {
                 callbacks: {
