@@ -776,7 +776,7 @@
                     const node = tempNodes.find(n => n.id === value.id);
                     if (node) {
                         const label = node.label;
-                        const maxLineLength = 40; // Adjusted to 40 to allow more text per line
+                        const maxLineLength = 100; // Adjusted to 40 to allow more text per line
                         let wrappedLabel = '';
                         let currentLine = '';
                         const words = label.split(' ');
