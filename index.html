@@ -1,0 +1,778 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VMware VCF 9 Upgrade Planner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* Clarity-like Base Styles */
+    body {
+      font-family: 'Inter', sans-serif; /* Clarity often uses Open Sans or similar, but Inter is close */
+      background-color: #f0f3f5; /* Light gray background, common in Clarity */
+      color: #333; /* Darker text for readability */
+    }
+    .container {
+      max-width: 1200px;
+    }
+    
+    /* Component Card Styles (Clarity-like) */
+    .component-card {
+      cursor: grab;
+      border: 1px solid #d9e1e8; /* Lighter, subtle border */
+      border-radius: 6px; /* Slightly less rounded corners for Clarity feel */
+      padding: 12px;
+      margin: 8px;
+      background: #ffffff;
+      transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); /* Subtle shadow */
+    }
+    .component-card:hover {
+      transform: translateY(-2px) scale(1.01); /* Lift and slightly enlarge on hover */
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12); /* More pronounced shadow on hover */
+      cursor: grabbing;
+    }
+    .component-card h3 {
+      font-weight: 600; /* Semi-bold */
+      color: #333; /* Dark text */
+    }
+    .component-card select {
+      border: 1px solid #b3c2ce; /* Clarity-like border for selects */
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.875rem;
+      background-color: #fcfdfe; /* Very light background for select */
+      cursor: pointer;
+      color: #333;
+    }
+
+    /* Drop Zone Styles (Clarity-like) */
+    .drop-zone {
+      min-height: 250px;
+      border: 2px dashed #a3d0ed; /* Lighter blue dashed border */
+      border-radius: 6px;
+      padding: 20px;
+      background: #f5fafd; /* Very light blue background */
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      gap: 10px;
+      transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+    }
+    .drop-zone.drag-over {
+      background: #e0f2fe; /* Slightly darker blue on drag over */
+      border-color: #007CBB; /* Clarity blue solid border */
+    }
+    .dropped-component-card {
+      background-color: #eaf4fb; /* Light blue for dropped cards */
+      border: 1px solid #a3d0ed; /* Matching border */
+      border-radius: 4px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #00568c; /* Darker blue text */
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    .dropped-component-card .remove-btn {
+      margin-left: 10px;
+      background: none;
+      border: none;
+      color: #ef4444; /* Standard red for remove */
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    .dropped-component-card .remove-btn:hover {
+      background-color: #fecaca; /* Light red hover */
+    }
+
+    /* Chart Container Styles */
+    #chart-container {
+      min-height: 450px;
+      border: 1px solid #d9e1e8; /* Subtle border */
+      border-radius: 6px;
+      background: #ffffff;
+      padding: 20px;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      /* Removed align-items: flex-end; to allow chart to fill from top */
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    }
+    #chart-container.loading::after {
+      content: 'Generating Upgrade Path...';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #56687a; /* Clarity gray text */
+      font-size: 1.1rem;
+      font-weight: 500;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    canvas {
+      max-width: 100%;
+      height: 100%; /* Ensure canvas takes full available height */
+    }
+    .fallback-list {
+      list-style: decimal;
+      padding-left: 20px;
+      margin-top: 10px;
+    }
+
+    /* Info Box Styles (Clarity-like) */
+    .info-box {
+      background-color: #eaf4fb; /* Light blue info background */
+      border: 1px solid #a3d0ed; /* Matching border */
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 20px;
+      color: #00568c; /* Darker blue text */
+      font-size: 0.95rem;
+      line-height: 1.5;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    .info-box a {
+        color: #007CBB; /* Clarity blue for links */
+        text-decoration: underline;
+    }
+    .info-box a:hover {
+        color: #00568c;
+    }
+
+    /* Message Box Styles (Clarity-like) */
+    .message-box {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #333; /* Keep dark for general messages, or use Clarity's toast colors */
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+    }
+    .message-box.show {
+        opacity: 1;
+    }
+
+    /* Button Styles (Clarity-like Primary Button) */
+    .show-path-btn {
+        background-color: #007CBB; /* Clarity Primary Blue */
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 6px; /* Slightly less rounded */
+        font-size: 1.1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15); /* More pronounced shadow */
+        margin-top: 20px;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .show-path-btn:hover {
+        background-color: #00568c; /* Darker blue on hover */
+        transform: translateY(-1px); /* Subtle lift */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .show-path-btn:active {
+        transform: translateY(0);
+        box-shadow: 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Reset Button Style (Clarity-like Secondary Button) */
+    .reset-btn {
+        background-color: #6a7c8a; /* Clarity Gray/Secondary Button */
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 6px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        margin-top: 10px; /* Space from Show Path button */
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .reset-btn:hover {
+        background-color: #4a5568; /* Darker gray on hover */
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .reset-btn:active {
+        transform: translateY(0);
+        box-shadow: 1px 2px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="container mx-auto p-6">
+    <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">VMware VCF 9 Upgrade Planner</h1>
+    <p class="text-center text-gray-600 mb-8">Drag and drop existing VMware components to visualize a potential upgrade path to VMware Cloud Foundation 9.0</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="bg-white p-4 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold mb-4 text-gray-700">Component Selection</h2>
+        <div id="components-palette" class="flex flex-wrap -m-2">
+          </div>
+      </div>
+      <div class="bg-white p-4 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold mb-4 text-gray-700">Your Current Environment</h2>
+        <div id="customer-environment" class="drop-zone">
+          <p class="text-gray-500 text-center w-full">Drag components here to build your current environment.</p>
+        </div>
+        <button id="show-path-button" class="show-path-btn">Show Upgrade Path</button>
+        <button id="reset-button" class="reset-btn">Reset</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6"> 
+      <div class="bg-white p-4 rounded-lg shadow-md col-span-1 md:col-span-2"> 
+        <h2 class="text-xl font-semibold mb-4 text-gray-700">Upgrade Path</h2>
+        <div id="chart-container" class="relative">
+          <canvas id="flowchart"></canvas>
+        </div>
+        <div id="overview" class="mt-4 info-box">
+          <p class="text-gray-700">Drop components into "Your Current Environment" and click "Show Upgrade Path".</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="message-box" class="message-box"></div>
+
+  <script>
+    // Register Chart.js datalabels plugin
+    Chart.register(ChartDataLabels);
+
+    // Function to show custom messages
+    function showMessage(message, type = 'info') {
+        const msgBox = document.getElementById('message-box');
+        msgBox.textContent = message;
+        msgBox.className = 'message-box show'; // Reset and show
+        if (type === 'error') {
+            msgBox.style.backgroundColor = '#dc2626'; // Red for error
+        } else {
+            msgBox.style.backgroundColor = '#333'; // Default dark
+        }
+        setTimeout(() => {
+            msgBox.classList.remove('show');
+        }, 3000); // Hide after 3 seconds
+    }
+
+    // Component data with icons and versions
+    const components = [
+      { name: 'vCenter', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U3', '9.0'], icon: '<i class="fas fa-server"></i>' },
+      { name: 'ESX', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U3', '9.0'], icon: '<i class="fas fa-microchip"></i>' },
+      { name: 'vSAN', versions: ['7.0 U3', '8.0 U2', '9.0'], icon: '<i class="fas fa-hdd"></i>' },
+      { name: 'NSX', versions: ['3.2.x', '4.1.x', '4.2.x'], icon: '<i class="fas fa-network-wired"></i>' },
+      { name: 'Tanzu', versions: ['1.x', '2.x', '2.2'], icon: '<i class="fas fa-cubes"></i>' },
+      { name: 'Aria Automation', versions: ['8.x', '8.14+'], icon: '<i class="fas fa-robot"></i>' },
+      { name: 'Aria Operations', versions: ['8.x', '8.14+'], icon: '<i class="fas fa-chart-line"></i>' },
+      { name: 'Aria Operations for Logs', versions: ['8.x', '8.14+'], icon: '<i class="fas fa-file-alt"></i>' },
+      { name: 'Aria Operations for Networks', versions: ['6.x', '6.12+'], icon: '<i class="fas fa-project-diagram"></i>' },
+      { name: 'SDDC Manager', versions: ['4.x', '5.x'], icon: '<i class="fas fa-cloud"></i>' },
+      { name: 'VxRail Manager', versions: ['7.x', '8.x'], icon: '<i class="fas fa-server"></i>' }
+    ];
+
+    // Populate components palette
+    const palette = document.getElementById('components-palette');
+    components.forEach(component => {
+      const card = document.createElement('div');
+      card.className = 'component-card';
+      card.draggable = true;
+      card.innerHTML = `
+        ${component.icon}
+        <h3 class="text-sm font-medium ml-2 mr-2">${component.name}</h3>
+        <select class="version-select p-1 border rounded">
+          ${component.versions.map(v => `<option value="${v}">${v}</option>`).join('')}
+        </select>
+      `;
+      card.dataset.component = component.name;
+      palette.appendChild(card);
+
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', JSON.stringify({
+          component: component.name,
+          version: card.querySelector('.version-select').value
+        }));
+        card.style.opacity = '0.4'; // Visual feedback for dragging
+      });
+
+      card.addEventListener('dragend', () => {
+        card.style.opacity = '1'; // Reset opacity after drag
+      });
+    });
+
+    // Customer environment drop zone
+    const dropZone = document.getElementById('customer-environment');
+    
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+
+      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+      const existing = Array.from(dropZone.children).find(el => el.dataset.component === data.component);
+      if (existing) {
+        showMessage(`Component "${data.component}" already added. Remove it first.`, 'error');
+        return;
+      }
+
+      const item = document.createElement('div');
+      item.className = 'dropped-component-card';
+      item.dataset.component = data.component;
+      item.dataset.version = data.version;
+      item.innerHTML = `
+        <span>${data.component} ${data.version}</span>
+        <button class="remove-btn" title="Remove"><i class="fas fa-times-circle"></i></button>
+      `;
+      dropZone.appendChild(item);
+      showMessage(`Added "${data.component} ${data.version}" to your environment.`);
+
+      item.querySelector('.remove-btn').addEventListener('click', () => {
+        item.remove();
+        showMessage(`Removed "${data.component} ${data.version}" from your environment.`);
+        // No immediate update to flowchart
+      });
+
+      // No immediate update to flowchart
+    });
+
+    // "Show Upgrade Path" button functionality
+    const showPathButton = document.getElementById('show-path-button');
+    showPathButton.addEventListener('click', () => {
+        const droppedComponents = getDroppedComponents();
+        if (droppedComponents.length === 0) {
+            showMessage("Please drag components to 'Your Current Environment' first.", 'error');
+            return;
+        }
+        updateFlowchart();
+    });
+
+    // "Reset" button functionality
+    const resetButton = document.getElementById('reset-button');
+    resetButton.addEventListener('click', () => {
+        const dropZone = document.getElementById('customer-environment');
+        const overviewDiv = document.getElementById('overview');
+        const chartContainer = document.getElementById('chart-container');
+        const ctx = document.getElementById('flowchart').getContext('2d');
+
+        // Clear dropped components
+        dropZone.innerHTML = '<p class="text-gray-500 text-center w-full">Drag components here to build your current environment.</p>';
+        
+        // Destroy existing chart if it exists and clear canvas
+        if (window.flowchartInstance) {
+            window.flowchartInstance.destroy();
+            window.flowchartInstance = null; // Clear reference
+        }
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+        // Reset overview text
+        overviewDiv.innerHTML = '<p class="text-gray-700">Drop components into "Your Current Environment" and click "Show Upgrade Path".</p>';
+        
+        // Ensure loading state is removed
+        chartContainer.classList.remove('loading');
+
+        showMessage('Environment and upgrade path cleared.');
+    });
+
+
+    // Helper to get dropped components
+    function getDroppedComponents() {
+      return Array.from(dropZone.children).map(el => ({
+        name: el.dataset.component,
+        version: String(el.dataset.version || '')
+      })).filter(c => c.name);
+    }
+
+    // Flowchart rendering and dynamic scenario generation
+    function updateFlowchart() {
+      const ctx = document.getElementById('flowchart').getContext('2d');
+      const chartContainer = document.getElementById('chart-container');
+      const overviewDiv = document.getElementById('overview');
+      const droppedComponents = getDroppedComponents();
+
+      if (droppedComponents.length === 0) {
+        overviewDiv.innerHTML = '<p class="text-gray-700">Drop components into "Your Current Environment" and click "Show Upgrade Path".</p>';
+        if (window.flowchartInstance) {
+          window.flowchartInstance.destroy();
+          ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        }
+        chartContainer.classList.remove('loading');
+        return;
+      }
+
+      chartContainer.classList.add('loading');
+
+      let tempNodes = [];
+      let tempConnections = [];
+      let details = '';
+      let nextNodeId = 1;
+      let lastNodeId = 0;
+      const verticalSpacing = 70; // Spacing between nodes on the Y-axis
+      const nodeXPosition = 200; // Fixed X-position for all nodes to center them
+
+      const validDroppedComponents = droppedComponents.filter(c => c && typeof c.name === 'string' && typeof c.version === 'string');
+
+      const hasSDDCManager = validDroppedComponents.some(c => c.name === 'SDDC Manager');
+      const hasVxRail = validDroppedComponents.some(c => c.name === 'VxRail Manager');
+      const hasNSX = validDroppedComponents.some(c => c.name === 'NSX');
+      const hasTanzu = validDroppedComponents.some(c => c.name === 'Tanzu');
+      const hasAria = validDroppedComponents.some(c => c.name.startsWith('Aria'));
+      
+      const hasOldVSphere = validDroppedComponents.some(c => (c.name === 'vCenter' || c.name === 'ESX') && c.version.startsWith('7.'));
+      const hasOldVSAN = validDroppedComponents.some(c => c.name === 'vSAN' && c.version.startsWith('7.'));
+      const hasOldNSX = validDroppedComponents.some(c => c.name === 'NSX' && c.version.startsWith('3.'));
+      const hasVxRail7x = validDroppedComponents.some(c => c.name === 'VxRail Manager' && c.version.startsWith('7.'));
+      const hasVxRail8x = validDroppedComponents.some(c => c.name === 'VxRail Manager' && c.version.startsWith('8.'));
+
+
+      // Start Node (logical first step, will be visually at the top)
+      const currentEnvLabel = `Current: ${validDroppedComponents.map(c => `${c.name} ${c.version}`).join(', ')}`;
+      tempNodes.push({ id: nextNodeId++, label: currentEnvLabel, type: 'start', x: nodeXPosition });
+      lastNodeId = tempNodes[tempNodes.length - 1].id;
+
+      if (hasVxRail) {
+          if (hasVxRail7x) {
+              tempNodes.push({ id: nextNodeId++, label: 'Upgrade VxRail Manager to 8.x', type: 'action', x: nodeXPosition });
+              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+              lastNodeId = tempNodes[tempNodes.length - 1].id;
+              tempNodes.push({ id: nextNodeId++, label: 'VCF 9.0 Upgrade Not Available', type: 'end', x: nodeXPosition });
+              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+              lastNodeId = tempNodes[tempNodes.length - 1].id;
+
+              details = `**VxRail Manager 7.x Upgrade Path:**<br>
+              At the current time, there is no direct upgrade path from VxRail Manager 7.x to VCF 9.0.
+              <ol class="list-decimal list-inside ml-4">
+                <li>**Upgrade VxRail Manager to 8.x:** The only available upgrade path for VxRail Manager 7.x is to upgrade to VxRail Manager 8.x. Utilize the VxRail LCM for this process. For detailed steps, refer to the <a href="https://www.dell.com/support/kbdoc/en-in/000020129/vxrail-upgrade-information" target="_blank" class="text-blue-600 hover:underline">official Dell VxRail upgrade information</a>.</li>
+                <li>**VCF 9.0 Upgrade Not Available:** Currently, an upgrade path from VxRail Manager 8.x to VCF 9.0 is not available. Please refer to the <a href="https://knowledge.broadcom.com/external/article/306446/supported-versions-of-vmware-cloud-found.html" target="_blank" class="text-blue-600 hover:underline">Supported Versions of VMware Cloud Foundation KB article</a> for the latest information.</li>
+              </ol>`;
+          } else if (hasVxRail8x) {
+              tempNodes.push({ id: nextNodeId++, label: 'VCF 9.0 Upgrade Not Available', type: 'end', x: nodeXPosition });
+              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+              lastNodeId = tempNodes[tempNodes.length - 1].id;
+
+              details = `**VxRail Manager 8.x Upgrade Path:**<br>
+              At the current time, an upgrade path from VxRail Manager 8.x to VCF 9.0 is not available.
+              <ol class="list-decimal list-inside ml-4">
+                <li>**VCF 9.0 Upgrade Not Available:** Please refer to the <a href="https://knowledge.broadcom.com/external/article/306446/supported-versions-of-vmware-cloud-found.html" target="_blank" class="text-blue-600 hover:underline">Supported Versions of VMware Cloud Foundation KB article</a> for the latest information regarding supported upgrade paths.</li>
+              </ol>`;
+          }
+      } else if (hasSDDCManager) {
+          tempNodes.push({ id: nextNodeId++, label: 'Perform VCF Pre-Upgrade Checks', type: 'action', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+          lastNodeId = tempNodes[tempNodes.length - 1].id;
+          details = `**Existing VCF Environment Upgrade Path:**<br>
+          This path is for environments already running VMware Cloud Foundation. The upgrade is managed through SDDC Manager.
+          <ol class="list-decimal list-inside ml-4">
+            <li>**Perform VCF Pre-Upgrade Checks:** Conduct comprehensive health checks of your VCF environment, including network validation, DNS/NTP synchronization, and ensure all necessary backups of SDDC Manager and component VMs are completed. Consult the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/planning-and-preparation.html" target="_blank" class="text-blue-600 hover:underline">VCF 9.0 Planning and Preparation Guide</a> for a complete pre-check list.</li>`;
+
+          const sddcManagerComponent = validDroppedComponents.find(c => c.name === 'SDDC Manager');
+          const sddcManagerVersion = sddcManagerComponent ? sddcManagerComponent.version : '';
+          const requiresIntermediateVCF5x = sddcManagerVersion.startsWith('4.');
+
+          if (requiresIntermediateVCF5x) {
+              tempNodes.push({ id: nextNodeId++, label: 'Intermediate Upgrade to VCF 5.x SDDC Manager', type: 'action', x: nodeXPosition });
+              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+              lastNodeId = tempNodes[tempNodes.length - 1].id;
+              tempNodes.push({ id: nextNodeId++, label: 'Upgrade VCF 5.x Management Domain', type: 'action', x: nodeXPosition });
+              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+              lastNodeId = tempNodes[tempNodes.length - 1].id;
+              details += `<li>**Intermediate Upgrade to VCF 5.x:** VCF environments with SDDC Manager 4.x require an intermediate upgrade to VCF 5.x (which includes vCenter 8.0, vSAN 8.0, NSX 4.1.x) before proceeding to VCF 9.0. Ensure hardware compatibility for ESX 8.0.</li>`;
+          }
+          
+          tempNodes.push({ id: nextNodeId++, label: 'Upgrade SDDC Manager to 9.0', type: 'action', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+          lastNodeId = tempNodes[tempNodes.length - 1].id;
+          details += `<li>**Upgrade SDDC Manager to 9.0:** Update the SDDC Manager appliance itself to the VCF 9.0 version.</li>`;
+          
+          tempNodes.push({ id: nextNodeId++, label: 'Upgrade VCF 9.0 Management Domain (vCenter, NSX, ESX, vSAN to 9.0)', type: 'action', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+          lastNodeId = tempNodes[tempNodes.length - 1].id;
+          details += `<li>**Upgrade VCF 9.0 Management Domain:** Upgrade the core components of the management domain (vCenter, NSX Manager, ESX hosts, vSAN) to their VCF 9.0 compatible versions.</li>`;
+          
+          tempNodes.push({ id: nextNodeId++, label: 'Upgrade VCF 9.0 Workload Domains (Optional, to 9.0)', type: 'action', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+          lastNodeId = tempNodes[tempNodes.length - 1].id;
+          details += `<li>**Upgrade VCF 9.0 Workload Domains (Optional):** System-defined and customer-created workload domains can be upgraded sequentially after the management domain.</li>`;
+          
+          tempNodes.push({ id: nextNodeId++, label: 'Perform VCF Post-Upgrade Validations', type: 'action', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+          lastNodeId = tempNodes[tempNodes.length - 1].id;
+          details += `<li>**Perform VCF Post-Upgrade Validations:** Verify the health and functionality of all VCF components and integrated services.</li>
+          </ol>
+          Always refer to the specific <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/release-notes/vmware-cloud-foundation-90-release-notes.html" target="_blank" class="text-blue-600 hover:underline">VCF 9.0 Release Notes</a> and <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment.html" target="_blank" class="text-blue-600 hover:underline">VCF 9.0 Deployment Guide (which includes upgrade info)</a> for your exact version and detailed procedures.`;
+          if (hasTanzu || hasAria) {
+              details += ` Existing Tanzu and Aria Suite components will be upgraded as part of the VCF Bill of Materials (BOM) or re-integrated post-upgrade.`;
+          }
+      } else { // Standalone environment
+          tempNodes.push({ id: nextNodeId++, label: 'Perform Pre-Upgrade Checks (Compatibility, Health)', type: 'action', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+          lastNodeId = tempNodes[tempNodes.length - 1].id;
+          details = `**Standalone Environment to VCF 9.0 Convergence Path:**<br>
+          This path is for converting existing standalone VMware vSphere, vSAN, and NSX environments into a VCF 9.0 deployment.
+          <ol class="list-decimal list-inside ml-4">
+            <li>**Perform Pre-Upgrade Checks (Compatibility, Health):** Ensure your current standalone components meet VCF 9.0 compatibility requirements. Perform health checks, backups of all components (vCenter, NSX, etc.), and thoroughly review the <a href="https://interopmatrix.broadcom.com/Upgrade" target="_blank" class="text-blue-600 hover:underline">Product Interoperability Matrix</a> for supported upgrade paths.</li>`;
+
+          // Intermediate upgrade for vCenter/ESX/vSAN from 7.x to 8.x
+          if (hasOldVSphere || hasOldVSAN) {
+              tempNodes.push({ id: nextNodeId++, label: 'Upgrade vCenter/ESX/vSAN to 8.x', type: 'action', x: nodeXPosition });
+              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+              lastNodeId = tempNodes[tempNodes.length - 1].id;
+              details += `<li>**Upgrade vCenter/ESX/vSAN to 8.x:** If your vCenter, ESX hosts, or vSAN are currently on version 7.x, you must first upgrade them to a compatible 8.x version. This is a mandatory intermediate step before moving to VCF 9.0 components.</li>`;
+          }
+
+          tempNodes.push({ id: nextNodeId++, label: 'Upgrade vCenter to 9.0', type: 'action', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+          lastNodeId = tempNodes[tempNodes.length - 1].id;
+          details += `<li>**Upgrade vCenter to 9.0:** Upgrade your vCenter to a version compatible with VCF 9.0 (e.g., vSphere 9.0). This is often the first step in a component-by-component upgrade.</li>`;
+
+          tempNodes.push({ id: nextNodeId++, label: 'Upgrade ESX Hosts & vSAN to 9.0 (if applicable)', type: 'action', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+          lastNodeId = tempNodes[tempNodes.length - 1].id;
+          details += `<li>**Upgrade ESX Hosts & vSAN to 9.0 (if applicable):** Upgrade your ESX hosts and vSAN (if present) to versions compatible with VCF 9.0.</li>`;
+
+          if (hasNSX) {
+              // Intermediate upgrade for NSX from 3.2.x to 4.1.x
+              if (hasOldNSX) {
+                  tempNodes.push({ id: nextNodeId++, label: 'Upgrade NSX to 4.1.x', type: 'action', x: nodeXPosition });
+                  tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                  lastNodeId = tempNodes[tempNodes.length - 1].id;
+                  details += `<li>**Upgrade NSX to 4.1.x:** If your NSX-T Data Center is on version 3.2.x, you must first upgrade it to 4.1.x as an intermediate step.</li>`;
+              }
+              tempNodes.push({ id: nextNodeId++, label: 'Upgrade NSX to 4.2.x', type: 'action', x: nodeXPosition });
+              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+              lastNodeId = tempNodes[tempNodes.length - 1].id;
+              details += `<li>**Upgrade NSX to 4.2.x:** Upgrade your NSX environment to a version compatible with VCF 9.0.</li>`;
+              
+              tempNodes.push({ id: nextNodeId++, label: 'Import as VI Workload Domain into VCF 9.0', type: 'action', x: nodeXPosition });
+              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+              lastNodeId = tempNodes[tempNodes.length - 1].id;
+              details += `<li>**Import as VI Workload Domain into VCF 9.0:** For NSX-enabled standalone environments, the recommended path is to upgrade components and then import them as a VI workload domain into an existing VCF 9.0 management domain. This preserves your NSX configuration. See the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/building-your-private-cloud-infrastructure/working-with-workload-domains/import-an-existing-vcenter-to-create-a-workload-domain.html" target="_blank" class="text-blue-600 hover:underline">VCF 9.0 Import Existing vCenter Guide</a> for detailed steps.</li>`;
+          } else {
+              if (hasTanzu || hasAria) { // Add specific upgrade for Tanzu/Aria before converge if present
+                 tempNodes.push({ id: nextNodeId++, label: 'Deploy/Upgrade Aria Suite & Tanzu to VCF 9.0 compatible versions (if applicable)', type: 'action', x: nodeXPosition });
+                 tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+                 lastNodeId = tempNodes[tempNodes.length - 1].id;
+                 details += `<li>**Deploy/Upgrade Aria Suite & Tanzu to VCF 9.0 compatible versions (if applicable):** Deploy or upgrade your Aria Suite products and Tanzu components to versions compatible with VCF 9.0.</li>`;
+              }
+              tempNodes.push({ id: nextNodeId++, label: 'Use VCF Installer (Converge to VCF 9.0)', type: 'action', x: nodeXPosition });
+              tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+              lastNodeId = tempNodes[tempNodes.length - 1].id;
+              details += `<li>**Use VCF Installer (Converge to VCF 9.0):** For environments without NSX, use the VCF Installer to converge your existing vSphere infrastructure into a new VCF 9.0 management domain or workload domain. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment.html" target="_blank" class="text-blue-600 hover:underline">VCF 9.0 Deployment Guide</a>.</li>`;
+          }
+          tempNodes.push({ id: nextNodeId++, label: 'Perform Post-Converge/Import Validations', type: 'action', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+          lastNodeId = tempNodes[tempNodes.length - 1].id;
+          details += `<li>**Perform Post-Converge/Import Validations:** After deployment or import, ensure all VCF services are running correctly, perform health checks, and integrate any remaining components or third-party solutions.</li>
+          </ol>`;
+      }
+
+      // Only add the final VCF 9.0 Environment node if it's not a VxRail scenario with no direct upgrade.
+      if (!hasVxRail7x && !hasVxRail8x) {
+          tempNodes.push({ id: nextNodeId++, label: 'VCF 9.0 Environment', type: 'end', x: nodeXPosition });
+          tempConnections.push([lastNodeId, tempNodes[tempNodes.length - 1].id]);
+      }
+
+      // Calculate Y coordinates for top-to-bottom rendering
+      let currentY = verticalSpacing; 
+      for (let i = 0; i < tempNodes.length; i++) {
+          tempNodes[i].y = currentY;
+          currentY += verticalSpacing;
+      }
+
+      // Determine min and max Y for the chart scale to ensure all nodes are visible
+      const chartPadding = 50; // Extra padding for visibility
+      const chartMinY = tempNodes.length > 0 ? tempNodes[0].y - chartPadding : 0;
+      const chartMaxY = tempNodes.length > 0 ? tempNodes[tempNodes.length - 1].y + chartPadding : verticalSpacing * 2;
+
+      overviewDiv.innerHTML = `<p class="text-gray-700">${details}</p>`;
+
+      // Destroy existing chart and clear canvas
+      if (window.flowchartInstance) {
+        window.flowchartInstance.destroy();
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      }
+
+      // Set canvas dimensions explicitly before creating chart
+      const canvas = document.getElementById('flowchart');
+      const containerWidth = chartContainer.clientWidth;
+      const calculatedChartHeight = chartMaxY; 
+      canvas.width = containerWidth;
+      canvas.height = calculatedChartHeight; 
+
+      // Adjust chart container's min-height to fit the canvas if needed
+      chartContainer.style.minHeight = `${calculatedChartHeight + 40}px`; // Add some extra padding for the container itself
+
+      // Prepare Chart.js data
+      const datasets = [
+        {
+          label: 'Nodes',
+          data: tempNodes.map(node => ({ x: node.x, y: node.y, id: node.id, label: node.label, type: node.type })),
+          backgroundColor: (context) => {
+            const type = context.raw.type;
+            if (type === 'start') return '#00A300';
+            if (type === 'action') return '#007CBB';
+            if (type === 'end') return '#EF4444';
+            return '#56687a';
+          },
+          borderColor: (context) => {
+            const type = context.raw.type;
+            if (type === 'start') return '#007000';
+            if (type === 'action') return '#00568c';
+            if (type === 'end') return '#B91C1C';
+            return '#56687a';
+          },
+          pointRadius: 12,
+          pointHoverRadius: 15,
+          pointBorderWidth: 2,
+          pointBackgroundColor: 'white'
+        },
+        {
+          label: 'Connections',
+          data: tempConnections.flatMap(conn => {
+            const startNode = tempNodes.find(node => node.id === conn[0]);
+            const endNode = tempNodes.find(node => node.id === conn[1]);
+            if (startNode && endNode) {
+              return [
+                { x: startNode.x, y: startNode.y, id: `conn-${conn[0]}-${conn[1]}-start` },
+                { x: endNode.x, y: endNode.y, id: `conn-${conn[0]}-${conn[1]}-end` }
+              ];
+            }
+            return [];
+          }),
+          type: 'line',
+          borderColor: '#56687a',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0
+        }
+      ];
+
+      try {
+        window.flowchartInstance = new Chart(ctx, {
+          type: 'scatter',
+          data: { datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { display: false, min: 0, max: 400 },
+              y: { display: false, min: chartMinY, max: chartMaxY, reverse: true } /* Key change for top-to-bottom flow */
+            },
+            plugins: {
+              legend: { display: false },
+              datalabels: {
+                color: 'white',
+                font: { size: 12, weight: 'bold' },
+                formatter: (value, context) => {
+                  if (context.dataset.label === 'Nodes') {
+                    const node = tempNodes.find(n => n.id === value.id);
+                    if (node) {
+                        const label = node.label;
+                        const maxLineLength = 80; // Increased from 25 for wider lines
+                        let wrappedLabel = '';
+                        let currentLine = '';
+                        const words = label.split(' ');
+
+                        for (let i = 0; i < words.length; i++) {
+                            const word = words[i];
+                            if ((currentLine + (currentLine ? ' ' : '') + word).length <= maxLineLength) {
+                                currentLine += (currentLine ? ' ' : '') + word;
+                            } else {
+                                wrappedLabel += (wrappedLabel ? '\n' : '') + currentLine;
+                                currentLine = word;
+                            }
+                        }
+                        wrappedLabel += (wrappedLabel ? '\n' : '') + currentLine;
+                        return wrappedLabel;
+                    }
+                  }
+                  return '';
+                },
+                align: 'center',
+                anchor: 'center',
+                backgroundColor: (context) => {
+                    return context.raw && context.dataset.backgroundColor && context.dataset.backgroundColor[context.dataIndex] ? context.dataset.backgroundColor[context.dataIndex] : '#56687a';
+                },
+                borderRadius: 6,
+                padding: 10
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const node = tempNodes.find(n => n.id === context.raw.id);
+                    if (node) {
+                      if (node.type === 'start') return `Current Environment: ${node.label.replace('Current: ', '')}`;
+                      if (node.type === 'action') return `Action: ${node.label}`;
+                      if (node.type === 'end') return `Target: ${node.label}`;
+                    }
+                    return '';
+                  }
+                }
+              }
+            },
+            animation: {
+              duration: 800,
+              easing: 'easeOutQuart',
+              onComplete: () => {
+                chartContainer.classList.remove('loading');
+              }
+            }
+          }
+        });
+        showMessage('Upgrade path generated successfully!');
+      } catch (error) {
+        console.error('Error rendering flowchart:', error);
+        overviewDiv.innerHTML += `<p class="text-red-600">Failed to render flowchart. Please check console for errors: ${error.message}</p>`;
+        chartContainer.classList.remove('loading');
+        showMessage('Failed to generate flowchart.', 'error');
+      }
+    }
+
+    // Initialize empty state on load
+    window.onload = () => {
+      const overviewDiv = document.getElementById('overview');
+      overviewDiv.innerHTML = '<p class="text-gray-700">Drop components into "Your Current Environment" and click "Show Upgrade Path".</p>';
+      const ctx = document.getElementById('flowchart').getContext('2d');
+      if (window.flowchartInstance) {
+          window.flowchartInstance.destroy();
+      }
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    };
+  </script>
+</body>
+</html>
