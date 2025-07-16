@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -285,9 +283,9 @@
 
     // Component data with icons and versions
     const components = [
-      { name: 'vCenter', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U3', '9.0'], icon: '<i class="fas fa-server"></i>' },
-      { name: 'ESX', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U3', '9.0'], icon: '<i class="fas fa-microchip"></i>' },
-      { name: 'vSAN', versions: ['7.0 U3', '8.0 U2', '9.0'], icon: '<i class="fas fa-hdd"></i>' },
+      { name: 'vCenter', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U2', '8.0U3', '9.0'], icon: '<i class="fas fa-server"></i>' },
+      { name: 'ESX', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U2', '8.0U3', '9.0'], icon: '<i class="fas fa-microchip"></i>' },
+      { name: 'vSAN', versions: ['7.0 U3', '8.0', '8.0U1', '8.0U2', '8.0U3', '9.0'], icon: '<i class="fas fa-hdd"></i>' },
       { name: 'NSX', versions: ['3.2.x', '4.1.x', '4.2.x'], icon: '<i class="fas fa-network-wired"></i>' },
       { name: 'Tanzu', versions: ['1.x', '2.x', '2.2'], icon: '<i class="fas fa-cubes"></i>' },
       { name: 'Aria Automation', versions: ['8.x', '8.14+'], icon: '<i class="fas fa-robot"></i>' },
@@ -441,7 +439,7 @@
       let details = '';
       let nextNodeId = 1;
       let lastNodeId = 0;
-      const verticalSpacing = 70; // Spacing between nodes on the Y-axis
+      const verticalSpacing = 80; // Reduced from 100 for more compact vertical layout
       const nodeXPosition = 200; // Fixed X-position for all nodes to center them
 
       const validDroppedComponents = droppedComponents.filter(c => c && typeof c.name === 'string' && typeof c.version === 'string');
@@ -703,7 +701,7 @@
                     const node = tempNodes.find(n => n.id === value.id);
                     if (node) {
                         const label = node.label;
-                        const maxLineLength = 80; // Increased from 25 for wider lines
+                        const maxLineLength = 100; // Adjusted to 40 to allow more text per line
                         let wrappedLabel = '';
                         let currentLine = '';
                         const words = label.split(' ');
