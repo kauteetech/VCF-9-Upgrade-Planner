@@ -284,6 +284,8 @@
             { id: 'AriaOperationsNetworks', name: 'Aria Operations for Networks', icon: 'fas fa-project-diagram', versions: ['6.12.x', '6.13.x', '6.14.x'] },
             { id: 'SDDCManager', name: 'SDDC Manager', icon: 'fas fa-cloud', versions: ['4.x', '5.x'] },
             { id: 'VxRailManager', name: 'VxRail Manager', icon: 'fas fa-server', versions: ['7.x', '8.x'] },
+            // New: Aria Suite Lifecycle
+            { id: 'AriaSuiteLifecycle', name: 'Aria Suite Lifecycle', icon: 'fas fa-sync-alt', versions: ['8.12.x', '8.14.x', '8.16.x', '8.18.x'] },
         ];
 
         // State variables
@@ -571,7 +573,7 @@
                     nodeClasses += ' start';
                 } else if (index === upgradeSteps.length - 1) {
                     nodeClasses += ' end';
-                    if (step.highlight) { // For VxRail "Upgrade Not Available"
+                    if (step.highlight) { // For VxRail "Not Available"
                         nodeClasses += ' highlight-error';
                     }
                 }
@@ -637,6 +639,7 @@
             const hasAriaOperations = selectedComponents.some(c => c.id === 'AriaOperations');
             const hasAriaOperationsLogs = selectedComponents.some(c => c.id === 'AriaOperationsLogs');
             const hasAriaOperationsNetworks = selectedComponents.some(c => c.id === 'AriaOperationsNetworks');
+            const hasAriaSuiteLifecycle = selectedComponents.some(c => c.id === 'AriaSuiteLifecycle'); // New
             const hasAnyAriaOrTKGS = hasTKGS || hasAriaAutomation || hasAriaOperations || hasAriaOperationsLogs || hasAriaOperationsNetworks;
 
 
@@ -650,6 +653,7 @@
             const ariaOperationsVersion = selectedComponents.find(c => c.id === 'AriaOperations')?.version;
             const ariaOperationsLogsVersion = selectedComponents.find(c => c.id === 'AriaOperationsLogs')?.version;
             const ariaOperationsNetworksVersion = selectedComponents.find(c => c.id === 'AriaOperationsNetworks')?.version;
+            const ariaSuiteLifecycleVersion = selectedComponents.find(c => c.id === 'AriaSuiteLifecycle')?.version; // New
 
 
             // Core components validation
@@ -699,9 +703,19 @@
                     upgradeSteps.push({ title: 'Upgrade VCF 5.x Management Domain', description: `Upgrade the core components of your management domain (${mgmtDomainComponents5x}) to their VCF 5.x compatible versions. See <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-5-2-and-earlier/5-2/upgrade-plan-for-vmware-cloud-foundation-5-2.html" target="_blank" class="text-blue-500 underline">VCF 5.x Management Domain Upgrade</a>.` });
                 }
 
+                // New: Upgrade Aria Suite Lifecycle if present and older than 8.18.x
+                if (hasAriaSuiteLifecycle && compareVersions(ariaSuiteLifecycleVersion, '8.18.x') < 0) {
+                    upgradeSteps.push({ title: `Upgrade Aria Suite Lifecycle to 8.18.x`, description: `Upgrade your Aria Suite Lifecycle to version 8.18.x. This is a prerequisite for managing Aria Suite products in VCF 9.0. Consult the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/aria/aria-suite-lifecycle/8-18/release-notes/vmware-aria-suite-lifecycle-818-release-notes.html" target="_blank" class="text-blue-500 underline">Aria Suite Lifecycle 8.18 Release Notes</a>.` });
+                }
+
                 upgradeSteps.push({ title: 'Upgrade SDDC Manager to 9.0', description: 'Upgrade the SDDC Manager appliance to the VCF 9.0 release. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/upgrade-the-management-domain-to-vmware-cloud-foundation-5-2/apply-cloud-foundation-5-2-update-bundle.html" target="_blank" class="text-blue-500 underline">VCF 9.0 SDDC Manager Upgrade Guide</a>.' });
                 const mgmtDomainComponents90 = getComponentListString(['vCenter', 'ESX', 'vSAN', 'NSX'], selectedComponents);
                 upgradeSteps.push({ title: 'Upgrade VCF 9.0 Management Domain', description: `Upgrade the management domain components (${mgmtDomainComponents90}) to VCF 9.0 compatible versions. TKGS for vSphere and Aria Suite components will be upgraded as part of the VCF BOM or re-integrated. For details, see <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/upgrade-the-management-domain-to-vmware-cloud-foundation-5-2.html" target="_blank" class="text-blue-500 underline">VCF 9.0 Management Domain Upgrade</a>.` });
+
+                // New: Apply Aria Suite Lifecycle 8.18 Patch 2 if 8.18.x is present AND Aria Operations is present
+                if (hasAriaSuiteLifecycle && compareVersions(ariaSuiteLifecycleVersion, '8.18.x') >= 0 && hasAriaOperations) {
+                    upgradeSteps.push({ title: 'Apply Aria Suite Lifecycle 8.18 Patch 2', description: 'Apply Patch 2 to Aria Suite Lifecycle 8.18.x. This patch enables the upgrade of Aria Operations to VCF Operations 9.0 and the installation of the VCF Operations Fleet Management Appliance. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/aria/aria-suite-lifecycle/8-18/release-notes/vmware-aria-suite-lifecycle-818-patch-2-release-notes.html" target="_blank" class="text-blue-500 underline">Aria Suite Lifecycle 8.18 Patch 2 Release Notes</a>.' });
+                }
 
                 // Aria and TKGS upgrades within VCF context
                 if (hasAnyAriaOrTKGS) {
@@ -718,8 +732,12 @@
                         upgradeSteps.push({ title: 'Upgrade Aria Automation to 9.0.0', description: `Upgrade Aria Automation to version 9.0.0. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/preparing-your-vcf-9-management-components/phase-3-import-and-upgrade-aria-automation-8-to-vcf-automation-9/upgrade-to-vcf-automation.html" target="_blank" class="text-blue-500 underline">Aria Automation 9.0 Upgrade Guide</a>.` });
                     }
                     if (hasAriaOperations) {
+                        let ariaOpsDesc = `Upgrade Aria Operations to version 9.0.0. Consult the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/preparing-your-vcf-9-management-components/upgrading-management-components/upgrade-to-vcf-operations.html" target="_blank" class="text-blue-500 underline">Aria Operations 9.0 Upgrade Guide</a>.`;
+                        if (hasAriaSuiteLifecycle && compareVersions(ariaSuiteLifecycleVersion, '8.18.x') >= 0) {
+                            ariaOpsDesc += ' This upgrade path is enabled by applying Aria Suite Lifecycle 8.18 Patch 2.';
+                        }
                         if (compareVersions(ariaOperationsVersion, '9.0') < 0) {
-                            upgradeSteps.push({ title: 'Upgrade Aria Operations to 9.0.0', description: `Upgrade Aria Operations to version 9.0.0. Consult the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/preparing-your-vcf-9-management-components/upgrading-management-components/upgrade-to-vcf-operations.html" target="_blank" class="text-blue-500 underline">Aria Operations 9.0 Upgrade Guide</a>.` });
+                             upgradeSteps.push({ title: 'Upgrade Aria Operations to 9.0.0', description: ariaOpsDesc });
                         }
                     }
                     if (hasAriaOperationsLogs) {
@@ -732,7 +750,7 @@
 
                 upgradeSteps.push({ title: 'Upgrade VCF 9.0 Workload Domains (Optional)', description: 'Upgrade your workload domains to VCF 9.0 as needed. This step is optional and depends on your environment\'s requirements. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/lifecycle-management/lifecycle-management-of-vcf-core-components/upgrade-workload-domains-to-vcf-5-2.html" target="_blank" class="text-blue-500 underline">VCF 9.0 Workload Domain Upgrade Guide</a>.' });
 
-                upgradeSteps.push({ title: 'Perform VCF Post-Upgrade Validations', description: 'Conduct thorough post-upgrade checks to ensure the stability and functionality of your VCF 9.0 environment. See <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vvs/1-0/health-reporting-and-monitoring-for-vmware-cloud-foundation.html" target="_blank" class="text-blue-500 underline">VCF Post-Upgrade Validation</a>.' });
+                upgradeSteps.push({ title: 'Perform VCF Post-Upgrade Validations', description: 'Conduct thorough post-upgrade checks to ensure the stability and functionality of your VCF 9.0 environment. See <a href="https://techdocs.broadcom.com/content/dam/broadcom/techdocs/us/en/assets/vmware-cis/vcf/vcf-9.0-operate-vcf-health-journey.pdf" target="_blank" class="text-blue-500 underline">VCF Post-Upgrade Validation</a>.' });
 
                 upgradeSteps.push({ title: 'VCF 9.0 Environment', description: 'Your environment is now successfully upgraded to VMware Cloud Foundation 9.0.', type: 'end' });
             }
@@ -753,6 +771,12 @@
                 overviewText += 'This path outlines the upgrade process for a standalone VMware environment to VMware Cloud Foundation (VCF) 9.0. This can involve either an "Import" path (if NSX is present) or a "Converge" path (if NSX is not present).\n\n';
 
                 upgradeSteps.push({ title: 'Perform Pre-Upgrade Checks (Compatibility, Health)', description: 'Before any upgrade, conduct thorough checks to ensure all components are compatible and healthy. Refer to the <a href="https://interopmatrix.broadcom.com/Upgrade" target="_blank" class="text-blue-500 underline">Broadcom Compatibility Guide</a>.' });
+
+                // New: Upgrade Aria Suite Lifecycle if present and older than 8.18.x
+                if (hasAriaSuiteLifecycle && compareVersions(ariaSuiteLifecycleVersion, '8.18.x') < 0) {
+                    upgradeSteps.push({ title: `Upgrade Aria Suite Lifecycle to 8.18.x`, description: `Upgrade your Aria Suite Lifecycle to version 8.18.x. This is a prerequisite for managing Aria Suite products in VCF 9.0. Consult the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/aria/aria-suite-lifecycle/8-18/release-notes/vmware-aria-suite-lifecycle-818-release-notes.html" target="_blank" class="text-blue-500 underline">Aria Suite Lifecycle 8.18 Release Notes</a>.` });
+                }
+
                 if (hasNSX) { // Import Path
                     overviewText += '### Import Path (NSX Present)\n\n';
 
@@ -769,6 +793,11 @@
 
                     upgradeSteps.push({ title: 'Upgrade NSX to 9.0.0 (for Import)', description: 'Upgrade your NSX environment to version 9.0.0. For detailed steps, see <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/upgrade-the-management-domain-to-vmware-cloud-foundation-5-2/upgrading-nsx--to-version-9.html" target="_blank" class="text-blue-500 underline">Broadcom NSX 9.0 Upgrade Guide</a>.' });
 
+                    // New: Apply Aria Suite Lifecycle 8.18 Patch 2 if 8.18.x is present AND Aria Operations is present
+                    if (hasAriaSuiteLifecycle && compareVersions(ariaSuiteLifecycleVersion, '8.18.x') >= 0 && hasAriaOperations) {
+                        upgradeSteps.push({ title: 'Apply Aria Suite Lifecycle 8.18 Patch 2', description: 'Apply Patch 2 to Aria Suite Lifecycle 8.18.x. This patch enables the upgrade of Aria Operations to VCF Operations 9.0 and the installation of the VCF Operations Fleet Management Appliance. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/aria/aria-suite-lifecycle/8-18/release-notes/vmware-aria-suite-lifecycle-818-patch-2-release-notes.html" target="_blank" class="text-blue-500 underline">Aria Suite Lifecycle 8.18 Patch 2 Release Notes</a>.' });
+                    }
+
                     if (hasAnyAriaOrTKGS) {
                         if (hasAriaOperationsNetworks) {
                             if (compareVersions(ariaOperationsNetworksVersion, '6.14.x') < 0) {
@@ -783,8 +812,12 @@
                             upgradeSteps.push({ title: 'Upgrade Aria Automation to 9.0.0', description: `Upgrade Aria Automation to version 9.0.0. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/preparing-your-vcf-9-management-components/phase-3-import-and-upgrade-aria-automation-8-to-vcf-automation-9/upgrade-to-vcf-automation.html" target="_blank" class="text-blue-500 underline">Aria Automation 9.0 Upgrade Guide</a>.` });
                         }
                         if (hasAriaOperations) {
+                            let ariaOpsDesc = `Upgrade Aria Operations to version 9.0.0. Consult the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/preparing-your-vcf-9-management-components/upgrading-management-components/upgrade-to-vcf-operations.html" target="_blank" class="text-blue-500 underline">Aria Operations 9.0 Upgrade Guide</a>.`;
+                            if (hasAriaSuiteLifecycle && compareVersions(ariaSuiteLifecycleVersion, '8.18.x') >= 0) {
+                                ariaOpsDesc += ' This upgrade path is enabled by applying Aria Suite Lifecycle 8.18 Patch 2.';
+                            }
                             if (compareVersions(ariaOperationsVersion, '9.0') < 0) {
-                                upgradeSteps.push({ title: 'Upgrade Aria Operations to 9.0.0', description: `Upgrade Aria Operations to version 9.0.0. Consult the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/preparing-your-vcf-9-management-components/upgrading-management-components/upgrade-to-vcf-operations.html" target="_blank" class="text-blue-500 underline">Aria Operations 9.0 Upgrade Guide</a>.` });
+                                 upgradeSteps.push({ title: 'Upgrade Aria Operations to 9.0.0', description: ariaOpsDesc });
                             }
                         }
                         if (hasAriaOperationsLogs) {
@@ -816,6 +849,11 @@
                         upgradeSteps.push({ title: 'Upgrade ESX Hosts & vSAN to 9.0 (for Converge)', description: `Upgrade your ESX hosts and vSAN to version 9.0. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere/9-0/esx-upgrade.html" target="_blank" class="text-blue-500 underline">ESX/vSAN 9.0 Upgrade Guide</a>.` });
                     }
 
+                    // New: Apply Aria Suite Lifecycle 8.18 Patch 2 if 8.18.x is present AND Aria Operations is present
+                    if (hasAriaSuiteLifecycle && compareVersions(ariaSuiteLifecycleVersion, '8.18.x') >= 0 && hasAriaOperations) {
+                        upgradeSteps.push({ title: 'Apply Aria Suite Lifecycle 8.18 Patch 2', description: 'Apply Patch 2 to Aria Suite Lifecycle 8.18.x. This patch enables the upgrade of Aria Operations to VCF Operations 9.0 and the installation of the VCF Operations Fleet Management Appliance. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/aria/aria-suite-lifecycle/8-18/release-notes/vmware-aria-suite-lifecycle-818-patch-2-release-notes.html" target="_blank" class="text-blue-500 underline">Aria Suite Lifecycle 8.18 Patch 2 Release Notes</a>.' });
+                    }
+
                     if (hasAnyAriaOrTKGS) {
                         if (hasAriaOperationsNetworks) {
                             if (compareVersions(ariaOperationsNetworksVersion, '6.14.x') < 0) {
@@ -830,8 +868,12 @@
                             upgradeSteps.push({ title: 'Upgrade Aria Automation to 9.0.0', description: `Upgrade Aria Automation to version 9.0.0. Refer to the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/preparing-your-vcf-9-management-components/phase-3-import-and-upgrade-aria-automation-8-to-vcf-automation-9/upgrade-to-vcf-automation.html" target="_blank" class="text-blue-500 underline">Aria Automation 9.0 Upgrade Guide</a>.` });
                         }
                         if (hasAriaOperations) {
+                            let ariaOpsDesc = `Upgrade Aria Operations to version 9.0.0. Consult the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/preparing-your-vcf-9-management-components/upgrading-management-components/upgrade-to-vcf-operations.html" target="_blank" class="text-blue-500 underline">Aria Operations 9.0 Upgrade Guide</a>.`;
+                            if (hasAriaSuiteLifecycle && compareVersions(ariaSuiteLifecycleVersion, '8.18.x') >= 0) {
+                                ariaOpsDesc += ' This upgrade path is enabled by applying Aria Suite Lifecycle 8.18 Patch 2.';
+                            }
                             if (compareVersions(ariaOperationsVersion, '9.0') < 0) {
-                                upgradeSteps.push({ title: 'Upgrade Aria Operations to 9.0.0', description: `Upgrade Aria Operations to version 9.0.0. Consult the <a href="https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/deployment/upgrading-cloud-foundation/preparing-your-vcf-9-management-components/upgrading-management-components/upgrade-to-vcf-operations.html" target="_blank" class="text-blue-500 underline">Aria Operations 9.0 Upgrade Guide</a>.` });
+                                 upgradeSteps.push({ title: 'Upgrade Aria Operations to 9.0.0', description: ariaOpsDesc });
                             }
                         }
                         if (hasAriaOperationsLogs) {
@@ -896,16 +938,8 @@
             pdf.text(`Page ${pageNumber} of ${totalPages}`, pdf.internal.pageSize.width - 10, pdf.internal.pageSize.height - 10, { align: 'right' });
         };
 
-        // Export to PDF functionality
+        // Export to PDF functionality (Revised to use jsPDF for text and drawing for flowchart)
         const exportToPdf = async () => {
-            const upgradePathSection = document.getElementById('upgrade-path-section');
-            const flowchartDivElement = document.getElementById('vis-flowchart'); // Direct reference to the visible flowchart
-            const overviewDivElement = document.getElementById('upgrade-overview'); // Direct reference to the visible overview
-
-            if (!upgradePathSection) {
-                showMessage('error', 'No upgrade path section found for export.');
-                return;
-            }
             if (upgradeSteps.length === 0) {
                 showMessage('error', 'Please generate an upgrade path first before exporting to PDF.');
                 return;
@@ -919,6 +953,7 @@
                 const pageHeight = 297; // A4 height in mm
                 const horizontalMargin = 10; // 10mm horizontal margin
                 const contentWidth = imgWidth - 2 * horizontalMargin;
+                let yOffset = 15; // Initial Y offset for content after header
                 let currentPage = 1;
 
                 // --- Page 1: Title Page ---
@@ -928,9 +963,9 @@
                 pdf.setFontSize(14);
                 pdf.text('Your personalized guide to VCF 9.0 upgrades', imgWidth / 2, pageHeight / 2 + 5, { align: 'center' });
                 pdf.addPage(); // Add first content page
+                yOffset = 15; // Reset yOffset for new page
 
-                // --- Page 2 (and beyond): Your Environment Summary ---
-                // Populate the hidden div for capture
+                // --- Page: Your Environment Summary (Still using html2canvas for consistent styling) ---
                 pdfComponentsList.innerHTML = '';
                 if (selectedComponents.length > 0) {
                     selectedComponents.forEach(comp => {
@@ -944,77 +979,179 @@
                     pdfComponentsList.appendChild(listItem);
                 }
 
-                // Capture the summary from the off-screen div
                 const summaryCanvas = await html2canvas(pdfComponentsSummary, { scale: 2 });
                 const summaryImgData = summaryCanvas.toDataURL('image/png');
                 const summaryImgHeight = (summaryCanvas.height * contentWidth) / summaryCanvas.width;
 
-                let yOffset = 15; // Initial Y offset after header
-                let heightLeft = summaryImgHeight;
-                let position = 0;
+                let summaryHeightLeft = summaryImgHeight;
+                let summaryPosition = 0;
 
-                while (heightLeft > 0) {
-                    addPageHeaderFooter(pdf, currentPage, 'XX'); // Total pages will be updated later
-                    pdf.addImage(summaryImgData, 'PNG', horizontalMargin, yOffset, contentWidth, Math.min(pageHeight - yOffset - 15, heightLeft), undefined, 'FAST', position); // 15mm for footer
-                    heightLeft -= (pageHeight - yOffset - 15);
-                    position += (pageHeight - yOffset - 15);
-                    if (heightLeft > 0) {
+                while (summaryHeightLeft > 0) {
+                    addPageHeaderFooter(pdf, currentPage, 'XX');
+                    pdf.addImage(summaryImgData, 'PNG', horizontalMargin, yOffset, contentWidth, Math.min(pageHeight - yOffset - 15, summaryHeightLeft), undefined, 'FAST', summaryPosition);
+                    summaryHeightLeft -= (pageHeight - yOffset - 15);
+                    summaryPosition += (pageHeight - yOffset - 15);
+                    if (summaryHeightLeft > 0) {
                         pdf.addPage();
                         currentPage++;
-                        yOffset = 15; // Reset Y offset for new page
+                        yOffset = 15;
                     }
                 }
                 pdf.addPage(); // Add new page for flowchart
                 currentPage++;
+                yOffset = 15;
 
-                // --- Flowchart Page(s) ---
-                // Directly capture the visible flowchart element
-                const flowchartCanvas = await html2canvas(flowchartDivElement, { scale: 2, useCORS: true });
-                const flowchartImgData = flowchartCanvas.toDataURL('image/png');
-                const flowchartImgHeight = (flowchartCanvas.height * contentWidth) / flowchartCanvas.width;
+                // --- Flowchart Drawing (Vector Graphics) ---
+                const nodeWidth = 150; // mm
+                const nodeHeight = 30; // mm
+                const nodeMargin = 15; // mm (space between nodes)
+                const arrowHeight = 15; // mm (length of arrow line)
+                const maxContentHeight = pageHeight - 2 * yOffset; // Usable height per page
 
-                yOffset = 15; // Reset Y offset
-                heightLeft = flowchartImgHeight;
-                position = 0;
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(12);
+                pdf.setTextColor(51, 51, 51); // Dark gray
 
-                while (heightLeft > 0) {
-                    addPageHeaderFooter(pdf, currentPage, 'XX');
-                    pdf.addImage(flowchartImgData, 'PNG', horizontalMargin, yOffset, contentWidth, Math.min(pageHeight - yOffset - 15, heightLeft), undefined, 'FAST', position);
-                    heightLeft -= (pageHeight - yOffset - 15);
-                    position += (pageHeight - yOffset - 15);
-                    if (heightLeft > 0) {
+                // Title for flowchart section
+                pdf.text('Upgrade Path (Flowchart)', horizontalMargin, yOffset);
+                yOffset += 10; // Space after title
+
+                for (let i = 0; i < upgradeSteps.length; i++) {
+                    const step = upgradeSteps[i];
+                    let currentY = yOffset;
+
+                    // Calculate text dimensions for node content
+                    pdf.setFont('helvetica', 'bold');
+                    let textLines = pdf.splitTextToSize(step.title, nodeWidth - 10); // 10mm padding inside node
+                    let textHeight = textLines.length * pdf.getLineHeight() / pdf.internal.scaleFactor; // Convert points to mm
+
+                    // Adjust node height based on text content
+                    let actualNodeHeight = Math.max(nodeHeight, textHeight + 10); // Min 30mm, or text height + padding
+
+                    // Check if node fits on current page
+                    if (currentY + actualNodeHeight > pageHeight - 15) { // 15mm for footer
                         pdf.addPage();
                         currentPage++;
-                        yOffset = 15;
+                        yOffset = 15; // Reset yOffset for new page
+                        addPageHeaderFooter(pdf, currentPage, 'XX');
+                        currentY = yOffset;
+                    }
+
+                    // Draw Node
+                    let nodeX = horizontalMargin + (contentWidth - nodeWidth) / 2; // Center node
+                    let nodeY = currentY;
+
+                    // Set node colors based on type
+                    let borderColor = '#e0e0e0'; // Light gray
+                    let fillColor = '#ffffff'; // White
+                    let textColor = '#333333'; // Dark gray
+
+                    if (i === 0) { // Start node
+                        borderColor = '#34d399'; // Green
+                        fillColor = '#e6ffed'; // Light green
+                        textColor = '#1a5e20'; // Dark green
+                    } else if (i === upgradeSteps.length - 1) { // End node
+                        borderColor = '#34d399'; // Green
+                        fillColor = '#e6ffed'; // Light green
+                        textColor = '#1a5e20'; // Dark green
+                        if (step.highlight) { // Error highlight for VxRail
+                            borderColor = '#ef4444'; // Red
+                            fillColor = '#ffe6e6'; // Light red
+                            textColor = '#8c1c1c'; // Dark red
+                        }
+                    } else if (step.type === 'decision') { // Decision node
+                        borderColor = '#f59e0b'; // Orange
+                        fillColor = '#fffbe6'; // Light yellow
+                        textColor = '#6d4e00'; // Dark yellow
+                    }
+
+                    pdf.setDrawColor(borderColor);
+                    pdf.setFillColor(fillColor);
+                    pdf.roundedRect(nodeX, nodeY, nodeWidth, actualNodeHeight, 3, 3, 'FD'); // Fill and Draw rectangle with rounded corners
+
+                    // Add text to node
+                    pdf.setTextColor(textColor);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.text(textLines, nodeX + nodeWidth / 2, nodeY + actualNodeHeight / 2, { align: 'center', baseline: 'middle' });
+
+                    yOffset = nodeY + actualNodeHeight; // Update yOffset after node
+
+                    // Add Arrow if not the last step
+                    if (i < upgradeSteps.length - 1) {
+                        // Check if arrow fits on current page, if not, add new page
+                        if (yOffset + arrowHeight > pageHeight - 15) {
+                            pdf.addPage();
+                            currentPage++;
+                            yOffset = 15; // Reset yOffset for new page
+                            addPageHeaderFooter(pdf, currentPage, 'XX');
+                        }
+                        pdf.setDrawColor('#9e9e9e'); // Gray for arrow
+                        pdf.setLineWidth(0.5); // Thin line
+                        // Draw line
+                        pdf.line(nodeX + nodeWidth / 2, yOffset, nodeX + nodeWidth / 2, yOffset + arrowHeight);
+                        // Draw arrowhead
+                        const arrowX = nodeX + nodeWidth / 2;
+                        const arrowY = yOffset + arrowHeight;
+                        pdf.triangle(arrowX - 3, arrowY - 3, arrowX + 3, arrowY - 3, arrowX, arrowY, 'FD'); // Filled triangle
+                        yOffset += arrowHeight + nodeMargin; // Move yOffset for next node
+                    } else {
+                        yOffset += nodeMargin; // Add margin after the last node
                     }
                 }
-                pdf.addPage(); // Add new page for overview
+
+                pdf.addPage(); // Add new page for overview text
                 currentPage++;
+                yOffset = 15;
 
+                // --- Overview Text (Searchable Text) ---
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(16);
+                pdf.setTextColor(51, 51, 51);
+                pdf.text('Overview (Text Summary)', horizontalMargin, yOffset);
+                yOffset += 10; // Space after title
 
-                // --- Overview Text Page(s) ---
-                // Directly capture the visible overview element
-                const overviewCanvas = await html2canvas(overviewDivElement, { scale: 2, useCORS: true });
-                const overviewImgData = overviewCanvas.toDataURL('image/png');
-                const overviewImgHeight = (overviewCanvas.height * contentWidth) / overviewCanvas.width;
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(10);
+                pdf.setTextColor(51, 51, 51);
 
-                yOffset = 15; // Reset Y offset
-                heightLeft = overviewImgHeight;
-                position = 0;
+                // Get the inner HTML content, then convert to text, handling <br/> and <a> tags
+                const overviewHtmlContent = upgradeOverviewDiv.innerHTML;
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = overviewHtmlContent;
 
-                while (heightLeft > 0) {
-                    addPageHeaderFooter(pdf, currentPage, 'XX');
-                    pdf.addImage(overviewImgData, 'PNG', horizontalMargin, yOffset, contentWidth, Math.min(pageHeight - yOffset - 15, heightLeft), undefined, 'FAST', position);
-                    heightLeft -= (pageHeight - yOffset - 15);
-                    position += (pageHeight - yOffset - 15);
-                    if (heightLeft > 0) {
+                // Replace <br/> with newline characters for proper text rendering
+                Array.from(tempDiv.querySelectorAll('br')).forEach(br => br.replaceWith('\n'));
+
+                // Extract text content, handling links by including their href in parentheses
+                let plainTextContent = '';
+                tempDiv.childNodes.forEach(node => {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        plainTextContent += node.textContent;
+                    } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'A') {
+                        plainTextContent += `${node.textContent} (${node.href})`;
+                    } else if (node.nodeType === Node.ELEMENT_NODE && (node.tagName === 'H2' || node.tagName === 'H3')) {
+                        // Handle headings for better formatting in PDF
+                        plainTextContent += `\n\n${node.textContent}\n`;
+                    } else {
+                        plainTextContent += node.textContent; // Fallback for other elements
+                    }
+                });
+
+                const textLines = pdf.splitTextToSize(plainTextContent, contentWidth);
+                const lineHeight = pdf.getLineHeight() / pdf.internal.scaleFactor; // in mm
+
+                for (let i = 0; i < textLines.length; i++) {
+                    if (yOffset + lineHeight > pageHeight - 15) { // Check if line fits, 15mm for footer
                         pdf.addPage();
                         currentPage++;
-                        yOffset = 15;
+                        yOffset = 15; // Reset yOffset for new page
+                        addPageHeaderFooter(pdf, currentPage, 'XX');
                     }
-                } 
+                    pdf.text(textLines[i], horizontalMargin, yOffset);
+                    yOffset += lineHeight;
+                }
 
-                // Update total page numbers
+                // Update total page numbers on all pages
                 const totalPages = pdf.internal.getNumberOfPages();
                 for (let i = 1; i <= totalPages; i++) {
                     pdf.setPage(i);
