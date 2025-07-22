@@ -25,7 +25,7 @@ Please generate the complete HTML code for the "VMware VCF 9 Upgrade Planner" we
 ## HTML Code to Recreate:
 
 
-<!---
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -1207,10 +1207,6 @@ Please generate the complete HTML code for the "VMware VCF 9 Upgrade Planner" we
     </script>
 </body>
 </html>
-
-
-
---->
 
 
 
